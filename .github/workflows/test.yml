@@ -1,0 +1,31 @@
+name: test envs
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+
+jobs:
+  # ==========================
+  #       DEV / Develop
+  # ==========================
+  build-and-deploy-develop-indexer:
+    if: startsWith(github.ref, 'refs/heads/')   # Runs only on branch pushes
+    uses: ./.github/workflows/123.yml
+    with:
+      COMMON_VAR: ${{ vars.COMMON_VAR }}
+      ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+    secrets:
+      SECRET: ${{ secrets.SECRET }}
+
+  # ==========================
+  #       PROD / Production
+  # ==========================
+  build-and-deploy-prod-indexer:
+    if: startsWith(github.ref, 'refs/tags/')    # Runs only on tag pushes
+    uses: ./.github/workflows/123.yml
+    with:
+      COMMON_VAR: ${{ vars.var }}
+      ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+    secrets:
+      SECRET: ${{ secrets.secret }}
