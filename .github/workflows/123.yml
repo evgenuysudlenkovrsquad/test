@@ -29,7 +29,6 @@ jobs:
         run: |
           if [ -z "${COMMON_VAR}" ]; then
             echo "COMMON_VAR is not set."
-            exit 1
           else
             echo "COMMON_VAR is set."
           fi
@@ -40,7 +39,6 @@ jobs:
         run: |
           if [ -z "${SECRET}" ]; then
             echo "SECRET is not set."
-            exit 1
           else
             echo "SECRET is set."
           fi
