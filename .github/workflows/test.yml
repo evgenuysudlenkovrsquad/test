@@ -16,7 +16,7 @@ jobs:
     uses: ./.github/workflows/123.yml       # Вызов Reusable Workflow
     with:
       ENVIRONMENT: 'development'             # Передача окружения как входного параметра
-      COMMON_VAR: ${{ vars.COMMON_VAR }}     # Передача COMMON_VAR из репозиторных переменных
+      common_var: ${{ vars.COMMON_VAR }}     # Передача COMMON_VAR из репозиторных переменных
     secrets:
       SECRET: ${{ secrets.SECRET }}  # Передача секрета для разработки
 
@@ -27,6 +27,6 @@ jobs:
     uses: ./.github/workflows/123.yml         # Вызов Reusable Workflow
     with:
       ENVIRONMENT: 'production'                # Передача окружения как входного параметра
-      common-var: ${{ vars.COMMON_VAR }}       # Передача COMMON_VAR из репозиторных переменных
+      common_var: ${{ vars.COMMON_VAR }}       # Передача COMMON_VAR из репозиторных переменных
     secrets:
       SECRET: ${{ secrets.SECRET }}       # Передача секрета для продакшена
