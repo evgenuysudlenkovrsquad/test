@@ -1,34 +1,30 @@
-# .github/workflows/deploy.yml
+# .github/workflows/test.yml
 name: Deploy Environments
 
 on:
   push:
     branches:
-      - develop      # Триггер при пушах в ветку develop
+      - develop
     tags:
-      - 'v*'         # Триггер при пушах тегов, начинающихся с 'v'
+      - 'v*'
 
 jobs:
   # ==========================
   #       DEV / Develop
   test-dev:
-    if: github.ref == 'refs/heads/develop'   # Условие запуска: пуш в ветку develop
-    environment: development                 # Указание среды
-    uses: ./.github/workflows/123.yml        # Использование Reusable Workflow
+    if: github.ref == 'refs/heads/develop'   # Запуск только при пуше в ветку develop
+    uses: ./.github/workflows/123.yml       # Вызов Reusable Workflow
     with:
-      COMMON_VAR: ${{ env.COMMON_VAR }}       # Передача переменной окружения
-      ENVIRONMENT: 'development'             # Явное указание окружения
+      ENVIRONMENT: 'development'             # Передача окружения как входного параметра
     secrets:
-      SECRET: ${{ secrets.SECRET }}          # Передача секрета из среды
+      SECRET: ${{ secrets.DEVELOP_SECRET }}  # Передача секрета для разработки
 
   # ==========================
   #       PROD / Production
   test-prod:
-    if: startsWith(github.ref, 'refs/tags/v') # Условие запуска: пуш тега, начинающегося с 'v'
-    environment: production                    # Указание среды
-    uses: ./.github/workflows/123.yml          # Использование Reusable Workflow
+    if: startsWith(github.ref, 'refs/tags/v') # Запуск только при пуше тегов, начинающихся с 'v'
+    uses: ./.github/workflows/123.yml         # Вызов Reusable Workflow
     with:
-      COMMON_VAR: ${{ env.COMMON_VAR }}         # Передача переменной окружения
-      ENVIRONMENT: 'production'                # Явное указание окружения
+      ENVIRONMENT: 'production'                # Передача окружения как входного параметра
     secrets:
-      SECRET: ${{ secrets.SECRET }}            # Передача секрета из среды
+      SECRET: ${{ secrets.PROD_SECRET }}       # Передача секрета для продакшена

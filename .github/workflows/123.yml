@@ -4,10 +4,6 @@ name: Build and Deploy
 on:
   workflow_call:
     inputs:
-      COMMON_VAR:
-        description: 'Common variable'
-        required: true
-        type: string
       ENVIRONMENT:
         description: 'Environment'
         required: true
@@ -20,18 +16,16 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    name: Deploy to ${{ inputs.ENVIRONMENT }}
-    environment: ${{ inputs.ENVIRONMENT }}
+    environment: ${{ inputs.ENVIRONMENT }}    # Указание окружения для доступа к его переменным и секретам
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Set up environment variables
         run: |
-          echo "COMMON_VAR=${{ inputs.COMMON_VAR }}" >> $GITHUB_ENV
+          echo "COMMON_VAR=${{ env.COMMON_VAR }}" >> $GITHUB_ENV
           echo "ENVIRONMENT=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
           echo "APP_NAMESPACE=${{ secrets.SECRET }}" >> $GITHUB_ENV
-          cat $GITHUB_ENV
 
       - name: Setup Kubernetes Configuration
         env:
@@ -39,10 +33,8 @@ jobs:
         run: |
           echo "$KUBECONFIG" > kubeconfig_${{ inputs.ENVIRONMENT }}
           export KUBECONFIG=$(pwd)/kubeconfig_${{ inputs.ENVIRONMENT }}
-          # Проверка доступа к кластеру (опционально)
           kubectl cluster-info
 
       - name: Deploy Application
         run: |
-          # Пример деплоя с использованием kubectl
           kubectl apply -f deployment.yaml
