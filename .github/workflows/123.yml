@@ -1,46 +1,22 @@
-# .github/workflows/123.yml
 name: Build and Deploy
 
 on:
   workflow_call:
     inputs:
       ENVIRONMENT:
-        description: 'Deployment Environment'
+        description: "Deployment Environment"
         required: true
         type: string
-      common_var:
-        description: 'Common Variable for Deployment'
-        required: true
-        type: string
-    secrets:
-      SECRET:
-        description: 'Kubernetes Config Secret'
-        required: true
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.ENVIRONMENT }}    # Указание окружения для доступа к его переменным и секретам
+    # Dynamically use the environment passed from caller
+    environment: ${{ inputs.ENVIRONMENT }}
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Set up environment
+      - name: Show environment variable
         run: |
-          echo "common=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
-          echo "env=${{ inputs.common_var }}" >> $GITHUB_ENV
-          echo "secret=${{ secrets.SECRET }}" >> $GITHUB_ENV
-
-      - name: Check if common-var is set
-        run: |
-          env
-
-      - name: Check if SECRET is set
-        run: |
-          if [ -z "${SECRET}" ]; then
-            echo "SECRET is not set."
-          else
-            echo "SECRET is set."
-          fi
-        env:
-          SECRET: ${{ secrets.SECRET }}
+          echo "COMMON_VAR from environment: $COMMON_VAR"
