@@ -1,29 +1,27 @@
-name: test envs
+name: Deploy Environments
 
 on:
   push:
-    branches: ['**']
-    tags: ['v*']
+    branches:
+      - develop
+    tags:
+      - 'v*'
 
 jobs:
-  # ==========================
-  #       DEV / Develop
   test-dev:
-    if: startsWith(github.ref, 'refs/heads/')   # Runs only on branch pushes
+    if: github.ref == 'refs/heads/develop'
     uses: ./.github/workflows/123.yml
     with:
       COMMON_VAR: ${{ vars.COMMON_VAR }}
-      ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+      ENVIRONMENT: 'development'
     secrets:
-      SECRET: ${{ secrets.SECRET }}
+      SECRET: ${{ secrets.DEVELOP_SECRET }}
 
-  # ==========================
-  #       PROD / Production
   test-prod:
-    if: startsWith(github.ref, 'refs/tags/')    # Runs only on tag pushes
+    if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/123.yml
     with:
-      COMMON_VAR: ${{ vars.var }}
-      ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+      COMMON_VAR: ${{ vars.PROD_COMMON_VAR }}
+      ENVIRONMENT: 'production'
     secrets:
-      SECRET: ${{ secrets.secret }}
+      SECRET: ${{ secrets.PROD_SECRET }}

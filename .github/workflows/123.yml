@@ -1,31 +1,32 @@
+# .github/workflows/123.yml
 name: Build and Deploy
 
 on:
   workflow_call:
     inputs:
       COMMON_VAR:
-        description: 'variable'
+        description: 'Common variable'
         required: true
         type: string
       ENVIRONMENT:
-        description: 'ENVIRONMENT'
+        description: 'Environment'
         required: true
         type: string
     secrets:
       SECRET:
-        description: 'secret'
+        description: 'Kubernetes Config Secret'
         required: true
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    name: testing
+    name: Deploy to ${{ inputs.ENVIRONMENT }}
     environment: ${{ inputs.ENVIRONMENT }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up environment
+      - name: Set up environment variables
         run: |
           echo "COMMON_VAR=${{ inputs.COMMON_VAR }}" >> $GITHUB_ENV
           echo "ENVIRONMENT=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
