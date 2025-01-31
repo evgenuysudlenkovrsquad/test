@@ -26,15 +26,4 @@ jobs:
           echo "COMMON_VAR=${{ env.COMMON_VAR }}" >> $GITHUB_ENV
           echo "ENVIRONMENT=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
           echo "APP_NAMESPACE=${{ secrets.SECRET }}" >> $GITHUB_ENV
-
-      - name: Setup Kubernetes Configuration
-        env:
-          KUBECONFIG: ${{ secrets.SECRET }}
-        run: |
-          echo "$KUBECONFIG" > kubeconfig_${{ inputs.ENVIRONMENT }}
-          export KUBECONFIG=$(pwd)/kubeconfig_${{ inputs.ENVIRONMENT }}
-          kubectl cluster-info
-
-      - name: Deploy Application
-        run: |
-          kubectl apply -f deployment.yaml
+          cat $GITHUB_ENV
