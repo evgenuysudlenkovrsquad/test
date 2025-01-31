@@ -1,3 +1,4 @@
+# .github/workflows/deploy.yml
 name: Deploy Environments
 
 on:
@@ -12,24 +13,22 @@ jobs:
   #       DEV / Develop
   test-dev:
     if: github.ref == 'refs/heads/develop'   # Условие запуска: пуш в ветку develop
-    uses: ./.github/workflows/123.yml
+    environment: development                 # Указание среды
+    uses: ./.github/workflows/123.yml        # Использование Reusable Workflow
     with:
-      COMMON_VAR: ${{ secrets.COMMON_VAR }}     # Передаём переменную из среды
-      ENVIRONMENT: 'development'               # Явно указываем окружение
+      COMMON_VAR: ${{ env.COMMON_VAR }}       # Передача переменной окружения
+      ENVIRONMENT: 'development'             # Явное указание окружения
     secrets:
-      SECRET: ${{ secrets.SECRET }}            # Передаём секрет из среды
-    environment:
-      name: development                         # Указываем среду
+      SECRET: ${{ secrets.SECRET }}          # Передача секрета из среды
 
   # ==========================
   #       PROD / Production
   test-prod:
     if: startsWith(github.ref, 'refs/tags/v') # Условие запуска: пуш тега, начинающегося с 'v'
-    uses: ./.github/workflows/123.yml
+    environment: production                    # Указание среды
+    uses: ./.github/workflows/123.yml          # Использование Reusable Workflow
     with:
-      COMMON_VAR: ${{ secrets.COMMON_VAR }}     # Передаём переменную из среды
-      ENVIRONMENT: 'production'                # Явно указываем окружение
+      COMMON_VAR: ${{ env.COMMON_VAR }}         # Передача переменной окружения
+      ENVIRONMENT: 'production'                # Явное указание окружения
     secrets:
-      SECRET: ${{ secrets.SECRET }}            # Передаём секрет из среды
-    environment:
-      name: production                          # Указываем среду
+      SECRET: ${{ secrets.SECRET }}            # Передача секрета из среды
