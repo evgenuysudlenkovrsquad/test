@@ -5,11 +5,11 @@ on:
   workflow_call:
     inputs:
       ENVIRONMENT:
-        description: 'Environment'
+        description: 'Deployment Environment'
         required: true
         type: string
       COMMON_VAR:
-        description: 'common var'
+        description: 'Common Variable for Deployment'
         required: true
         type: string
     secrets:
@@ -25,15 +25,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up environment variables
+      - name: Check if COMMON_VAR is set
         run: |
-          echo "COMMON_VAR=${{ env.COMMON_VAR }}" >> $GITHUB_ENV
-          echo "ENVIRONMENT=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
-          echo "APP_NAMESPACE=${{ secrets.SECRET }}" >> $GITHUB_ENV
+          if [ -z "${COMMON_VAR}" ]; then
+            echo "COMMON_VAR is not set."
+            exit 1
+          else
+            echo "COMMON_VAR is set."
+          fi
         env:
-          ENVIRONMENT: ${{ inputs.ENVIRONMENT }}
           COMMON_VAR: ${{ inputs.COMMON_VAR }}
-          APP_NAMESPACE: ${{ secrets.SECRET }}
 
       - name: Check if SECRET is set
         run: |
@@ -45,4 +46,3 @@ jobs:
           fi
         env:
           SECRET: ${{ secrets.SECRET }}
-    
