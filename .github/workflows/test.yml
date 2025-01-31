@@ -1,4 +1,3 @@
-# .github/workflows/test.yml
 name: Deploy Environments
 
 on:
@@ -6,25 +5,19 @@ on:
     branches:
       - develop
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
-  # ==========================
-  #       DEV / Develop
-  test-dev:
-    if: github.ref == 'refs/heads/develop'   # Запуск только при пуше в ветку develop
-    uses: ./.github/workflows/123.yml       # Вызов Reusable Workflow
+  deploy-dev:
+    # Only run when pushing to the 'develop' branch
+    if: github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/123.yml
     with:
-      ENVIRONMENT: 'development'             # Передача окружения как входного параметра
-    secrets:
-      SECRET: ${{ secrets.SECRET }}  # Передача секрета для разработки
+      ENVIRONMENT: development
 
-  # ==========================
-  #       PROD / Production
-  test-prod:
-    if: startsWith(github.ref, 'refs/tags/v') # Запуск только при пуше тегов, начинающихся с 'v'
-    uses: ./.github/workflows/123.yml         # Вызов Reusable Workflow
+  deploy-prod:
+    # Only run when pushing a tag like 'v1.0', 'v2.3' etc.
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/123.yml
     with:
-      ENVIRONMENT: 'production'                # Передача окружения как входного параметра
-    secrets:
-      SECRET: ${{ secrets.SECRET }}       # Передача секрета для продакшена
+      ENVIRONMENT: production

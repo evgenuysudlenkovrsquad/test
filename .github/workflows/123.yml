@@ -4,22 +4,24 @@ on:
   workflow_call:
     inputs:
       ENVIRONMENT:
-        description: "Deployment Environment"
+        description: "Environment name"
         required: true
         type: string
-    secrets:
-        SECRET:
-            description: 'Kubernetes Config Secret'
-            required: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    # Dynamically use the environment passed from caller
+
+    # This ties the job to the chosen environment (development or production).
+    # GitHub will inject any environment-level variables (and secrets) defined there.
     environment: ${{ inputs.ENVIRONMENT }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Show environment variable
+      - name: Print environment variables
         run: |
-          echo "COMMON_VAR from environment: $COMMON_VAR"
+          echo "Environment is: ${{ inputs.ENVIRONMENT }}"
+          echo "COMMON_VAR (from environment) is: $COMMON_VAR"
+          echo "ANOTHER_VAR (from environment) is: $ANOTHER_VAR"
