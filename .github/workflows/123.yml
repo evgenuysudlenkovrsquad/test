@@ -7,7 +7,10 @@ on:
         description: "Deployment Environment"
         required: true
         type: string
-
+    secrets:
+        SECRET:
+            description: 'Kubernetes Config Secret'
+            required: true
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
