@@ -3,25 +3,33 @@ name: Deploy Environments
 on:
   push:
     branches:
-      - develop
+      - develop      # Триггер при пушах в ветку develop
     tags:
-      - 'v*'
+      - 'v*'         # Триггер при пушах тегов, начинающихся с 'v'
 
 jobs:
+  # ==========================
+  #       DEV / Develop
   test-dev:
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop'   # Условие запуска: пуш в ветку develop
     uses: ./.github/workflows/123.yml
     with:
-      COMMON_VAR: ${{ vars.COMMON_VAR }}
-      ENVIRONMENT: 'develop'
+      COMMON_VAR: ${{ secrets.COMMON_VAR }}     # Передаём переменную из среды
+      ENVIRONMENT: 'development'               # Явно указываем окружение
     secrets:
-      SECRET: ${{ secrets.DEVELOP_SECRET }}
+      SECRET: ${{ secrets.SECRET }}            # Передаём секрет из среды
+    environment:
+      name: development                         # Указываем среду
 
+  # ==========================
+  #       PROD / Production
   test-prod:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') # Условие запуска: пуш тега, начинающегося с 'v'
     uses: ./.github/workflows/123.yml
     with:
-      COMMON_VAR: ${{ vars.PROD_COMMON_VAR }}
-      ENVIRONMENT: 'production'
+      COMMON_VAR: ${{ secrets.COMMON_VAR }}     # Передаём переменную из среды
+      ENVIRONMENT: 'production'                # Явно указываем окружение
     secrets:
-      SECRET: ${{ secrets.PROD_SECRET }}
+      SECRET: ${{ secrets.SECRET }}            # Передаём секрет из среды
+    environment:
+      name: production                          # Указываем среду
