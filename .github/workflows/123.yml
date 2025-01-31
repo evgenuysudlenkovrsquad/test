@@ -8,6 +8,10 @@ on:
         description: 'Environment'
         required: true
         type: string
+      COMMON_VAR:
+        description: 'common var'
+        required: true
+        type: string
     secrets:
       SECRET:
         description: 'Kubernetes Config Secret'
@@ -26,4 +30,19 @@ jobs:
           echo "COMMON_VAR=${{ env.COMMON_VAR }}" >> $GITHUB_ENV
           echo "ENVIRONMENT=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
           echo "APP_NAMESPACE=${{ secrets.SECRET }}" >> $GITHUB_ENV
-          cat $GITHUB_ENV
+        env:
+          ENVIRONMENT: ${{ inputs.ENVIRONMENT }}
+          COMMON_VAR: ${{ inputs.COMMON_VAR }}
+          APP_NAMESPACE: ${{ secrets.SECRET }}
+
+      - name: Check if SECRET is set
+        run: |
+          if [ -z "${SECRET}" ]; then
+            echo "SECRET is not set."
+            exit 1
+          else
+            echo "SECRET is set."
+          fi
+        env:
+          SECRET: ${{ secrets.SECRET }}
+    
