@@ -13,7 +13,7 @@ jobs:
     uses: ./.github/workflows/123.yml
     with:
       COMMON_VAR: ${{ vars.COMMON_VAR }}
-      ENVIRONMENT: 'development'
+      ENVIRONMENT: 'develop'
     secrets:
       SECRET: ${{ secrets.DEVELOP_SECRET }}
 
