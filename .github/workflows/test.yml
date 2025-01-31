@@ -17,7 +17,7 @@ jobs:
     with:
       ENVIRONMENT: 'development'             # Передача окружения как входного параметра
     secrets:
-      SECRET: ${{ secrets.DEVELOP_SECRET }}  # Передача секрета для разработки
+      SECRET: ${{ secrets.SECRET }}  # Передача секрета для разработки
 
   # ==========================
   #       PROD / Production
@@ -27,4 +27,4 @@ jobs:
     with:
       ENVIRONMENT: 'production'                # Передача окружения как входного параметра
     secrets:
-      SECRET: ${{ secrets.PROD_SECRET }}       # Передача секрета для продакшена
+      SECRET: ${{ secrets.SECRET }}       # Передача секрета для продакшена
