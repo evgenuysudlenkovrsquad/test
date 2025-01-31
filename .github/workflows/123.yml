@@ -18,6 +18,7 @@ on:
 
 jobs:
   build-and-deploy:
+    runs-on: ubuntu-latest
     name: testing
     environment: ${{ inputs.ENVIRONMENT }}
     steps:
