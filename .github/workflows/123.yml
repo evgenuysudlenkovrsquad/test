@@ -8,7 +8,7 @@ on:
         description: 'Deployment Environment'
         required: true
         type: string
-      COMMON_VAR:
+      common_var:
         description: 'Common Variable for Deployment'
         required: true
         type: string
@@ -25,15 +25,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Check if COMMON_VAR is set
+      - name: Set up environment
         run: |
-          if [ -z "${COMMON_VAR}" ]; then
-            echo "COMMON_VAR is not set."
-          else
-            echo "COMMON_VAR is set."
-          fi
-        env:
-          COMMON_VAR: ${{ inputs.COMMON_VAR }}
+          echo "common=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
+          echo "env=${{ inputs.common_var }}" >> $GITHUB_ENV
+          echo "secret=${{ secrets.SECRET }}" >> $GITHUB_ENV
+
+      - name: Check if common-var is set
+        run: |
+          env
 
       - name: Check if SECRET is set
         run: |
