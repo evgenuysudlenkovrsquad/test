@@ -12,7 +12,6 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     uses: ./.github/workflows/123.yml
     with:
-      COMMON_VAR: ${{ vars.COMMON_VAR }}
       ENVIRONMENT: 'development'
       EXPECTED_HASH: 'cf80cd8aed482d5d1527d7dc72fceff84e6326592848447d2dc0b0e87dfc9a90'  # Hash of "development"
     secrets:
@@ -22,7 +21,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/123.yml
     with:
-      COMMON_VAR: ${{ vars.PROD_COMMON_VAR }}
       ENVIRONMENT: 'production'
       EXPECTED_HASH: 'a54d88e06612d820bc3be72877c74f257b561b19e9e7bda8e46b7f5b3d7a8b3e'  # Hash of "production"
     secrets:
