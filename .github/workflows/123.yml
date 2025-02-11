@@ -48,6 +48,3 @@ jobs:
           fi
         env:
           SECRET: ${{ secrets.SECRET }}  # Secret is only used here
-
-      - name: Show Result
-        run: echo "Secret matches expected value: ${{ steps.secret_check.outputs.result }}"
