@@ -1,115 +1,117 @@
 # .woodpecker.yml
----
-kind: pipeline
-name: build-and-deploy
-
-# Запуск только при push в нужные ветки, кроме изменений *.md
+# ────────────────────────────────────────────────
+# Триггер: push в develop или sandbox,
+# исключая коммиты, затрагивающие только *.md
 when:
-  event:
-    - push
-  branch:
-    - develop
-    - sandbox
-  paths:
-    exclude:
-      - '**/*.md'
+  event: push
+  branch: [develop, sandbox]
+  path:
+    exclude: ['**/*.md']
 
-# Общие переменные (секрет и список приложений)
-environment:
-  KUBE_CONFIG:
-    from_secret: kube_config
-  APPS: '["indexer","relayer"]'
+# Кэш Kaniko — ускоряет повторные сборки
+volumes:
+  - name: kaniko-cache
+    temp: {}
 
 steps:
-# ──────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────
 - name: init-vars
   image: alpine:3.19
+  environment:
+    KUBE_CONFIG:
+      from_secret: kube_config
+    APPS: '["indexer","relayer"]'
   commands:
-    # Определяем STAGE и namespace на основе ветки
+    # Определяем STAGE и namespace по ветке
     - |
-      if   [ "$CI_COMMIT_BRANCH" = "develop" ]; then
-        echo "STAGE=develop"             >> $HOME/.env
-        echo "APP_NAMESPACE=ton-teleport-dev"  >> $HOME/.env
-      elif [ "$CI_COMMIT_BRANCH" = "sandbox" ]; then
-        echo "STAGE=sandbox"             >> $HOME/.env
-        echo "APP_NAMESPACE=ton-teleport-sand" >> $HOME/.env
-      else
-        echo "Branch $CI_COMMIT_BRANCH не поддерживается — пропускаю"
-        exit 78            # Преждевременный success-skip
-      fi
+      case "$CI_COMMIT_BRANCH" in
+        develop)
+          echo "STAGE=develop"            >> .env
+          echo "APP_NAMESPACE=ton-teleport-dev"  >> .env
+          ;;
+        sandbox)
+          echo "STAGE=sandbox"            >> .env
+          echo "APP_NAMESPACE=ton-teleport-sand" >> .env
+          ;;
+        *) exit 78 ;;          # неизвестная ветка → пропуск
+      esac
+      echo "SHORT_SHA=${CI_COMMIT_SHA:0:7}" >> .env
 
-# ──────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────
 - name: build-images
-  image: docker:25.0.2-dind          # docker-in-docker
-  privileged: true
+  image: gcr.io/kaniko-project/executor:debug
+  depends_on: [init-vars]
+  volumes:
+    - name: kaniko-cache
+      path: /kaniko/cache
   commands:
-    - apk add --no-cache bash curl jq git
-    - source $HOME/.env              # STAGE, APP_NAMESPACE, …
+    - apk add --no-cache bash curl jq kubectl
+    - source .env
     - echo "$KUBE_CONFIG" > kubeconfig.yaml
     - export KUBECONFIG=$PWD/kubeconfig.yaml
-    - kubectl config use-context $(kubectl config get-contexts -o name | head -n1)
+    - kubectl config use-context "$(kubectl config get-contexts -o name | head -n1)"
 
-    # Достаём данные реестра из секрета в кластере
+    # Достаём данные Docker-реестра из Kubernetes-секрета
     - |
-      dockerConfig=$(kubectl -n "$APP_NAMESPACE" \
-        get secret docker-registry-creds \
-        -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d)
-      DOCKER_REGISTRY_URL=$(echo "$dockerConfig" | jq -r '.auths | to_entries[0].key')
-      DOCKER_REGISTRY_USERNAME=$(echo "$dockerConfig" | jq -r '.auths | to_entries[0].value.username')
-      DOCKER_REGISTRY_PASSWORD=$(echo "$dockerConfig" | jq -r '.auths | to_entries[0].value.password')
-      echo "$DOCKER_REGISTRY_PASSWORD" | \
-        docker login "$DOCKER_REGISTRY_URL" --username "$DOCKER_REGISTRY_USERNAME" --password-stdin
+      reg=$(kubectl -n "$APP_NAMESPACE" get secret docker-registry-creds \
+            -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d)
+      REG_URL=$(echo "$reg" | jq -r '.auths | to_entries[0].key')
+      USER=$(echo "$reg" | jq -r '.auths | to_entries[0].value.username')
+      PASS=$(echo "$reg" | jq -r '.auths | to_entries[0].value.password')
 
-    # Строим / пушим образы для всех приложений
+      # Kaniko читает логин из /kaniko/.docker/config.json
+      mkdir -p /kaniko/.docker
+      printf '{"auths": {"%s": {"username":"%s","password":"%s"}}}' \
+             "$REG_URL" "$USER" "$PASS" > /kaniko/.docker/config.json
+
+    # Канико-сборка/пуш для каждого приложения
     - |
-      SHORT_SHA=${CI_COMMIT_SHA:0:7}
       for app in $(echo "$APPS" | jq -r '.[]'); do
-        IMAGE="$DOCKER_REGISTRY_URL/${app}-${STAGE}"
-        docker build -f $app/Dockerfile --platform linux/amd64 \
-          -t $IMAGE:latest -t $IMAGE:$SHORT_SHA .
-        docker push $IMAGE:latest
-        docker push $IMAGE:$SHORT_SHA
+        echo "📦  Build $app"
+        /kaniko/executor \
+          --context "$PWD" \
+          --dockerfile "$app/Dockerfile" \
+          --destination "$REG_URL/${app}-${STAGE}:latest" \
+          --destination "$REG_URL/${app}-${STAGE}:$SHORT_SHA" \
+          --cache=true --cache-dir=/kaniko/cache
       done
 
-# ──────────────────────────────────────────────────────────────────
-- name: helm-deploy
+# ────────────────────────────────────────────────
+- name: deploy
   image: alpine/k8s:1.30.1           # kubectl + helm
+  depends_on: [build-images]
   commands:
     - apk add --no-cache bash curl jq helm
-    - source $HOME/.env
+    - source .env
     - echo "$KUBE_CONFIG" > kubeconfig.yaml
     - export KUBECONFIG=$PWD/kubeconfig.yaml
-    - kubectl config use-context $(kubectl config get-contexts -o name | head -n1)
+    - kubectl config use-context "$(kubectl config get-contexts -o name | head -n1)"
 
-    # Получаем URL реестра (чтобы не повторять логику выше)
+    # URL реестра снова извлекаем через kubectl
     - |
-      dockerConfig=$(kubectl -n "$APP_NAMESPACE" \
-        get secret docker-registry-creds \
-        -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d)
-      DOCKER_REGISTRY_URL=$(echo "$dockerConfig" | jq -r '.auths | to_entries[0].key')
+      reg=$(kubectl -n "$APP_NAMESPACE" get secret docker-registry-creds \
+            -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d)
+      REG_URL=$(echo "$reg" | jq -r '.auths | to_entries[0].key')
 
-    # Параллельный деплой всех приложений с откатом при любой ошибке
-    - |
-      SHORT_SHA=${CI_COMMIT_SHA:0:7}
       failed=0
       for app in $(echo "$APPS" | jq -r '.[]'); do
-        SECRET_OPT=""
-        if kubectl -n "$APP_NAMESPACE" get secret "${app}-secrets" &>/dev/null; then
-          SECRET_OPT="--set secretName=${app}-secrets"
-        fi
-        VALUES_OPT=""
-        FILE="${app}/${app}-${STAGE}.yml"
-        [ -f "$FILE" ] && VALUES_OPT="-f $FILE"
+        echo "⎈  Deploy $app"
 
-        echo "⎈  Deploy $app..."
+        # секрета может не быть — добавляем параметр условно
+        SECRET_OPT=""
+        kubectl -n "$APP_NAMESPACE" get secret "${app}-secrets" &>/dev/null \
+          && SECRET_OPT="--set secretName=${app}-secrets"
+
+        VAL_OPT=""
+        [ -f "${app}/${app}-${STAGE}.yml" ] && VAL_OPT="-f ${app}/${app}-${STAGE}.yml"
+
         helm upgrade --install "$app" ./helm \
           --namespace "$APP_NAMESPACE" \
-          --set image.repository="$DOCKER_REGISTRY_URL/${app}-${STAGE}" \
+          --set image.repository="$REG_URL/${app}-${STAGE}" \
           --set image.tag="$SHORT_SHA" \
           --set app.name="$app" \
           --set configMapName=envs-config \
-          $SECRET_OPT \
-          --atomic --timeout 5m --history-max 2 \
-          $VALUES_OPT || failed=1
+          $SECRET_OPT $VAL_OPT \
+          --atomic --timeout 5m --history-max 2 || failed=1
       done
       [ $failed -eq 0 ] || exit 1
