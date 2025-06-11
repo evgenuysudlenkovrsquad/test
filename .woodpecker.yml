@@ -1,9 +1,9 @@
 # .woodpecker.yml
 # -------------------------------------------------
-# Запускаем pipeline при push-ах в develop или sandbox
+# Запускаем pipeline при push-ах в develop, main или sandbox
 when:
   - event: push
-    branch: [develop, sandbox]
+    branch: [develop, sandbox, main]
 
 steps:
 # -------------------------------------------------
