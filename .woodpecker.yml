@@ -1,0 +1,115 @@
+# .woodpecker.yml
+---
+kind: pipeline
+name: build-and-deploy
+
+# Запуск только при push в нужные ветки, кроме изменений *.md
+when:
+  event:
+    - push
+  branch:
+    - develop
+    - sandbox
+  paths:
+    exclude:
+      - '**/*.md'
+
+# Общие переменные (секрет и список приложений)
+environment:
+  KUBE_CONFIG:
+    from_secret: kube_config
+  APPS: '["indexer","relayer"]'
+
+steps:
+# ──────────────────────────────────────────────────────────────────
+- name: init-vars
+  image: alpine:3.19
+  commands:
+    # Определяем STAGE и namespace на основе ветки
+    - |
+      if   [ "$CI_COMMIT_BRANCH" = "develop" ]; then
+        echo "STAGE=develop"             >> $HOME/.env
+        echo "APP_NAMESPACE=ton-teleport-dev"  >> $HOME/.env
+      elif [ "$CI_COMMIT_BRANCH" = "sandbox" ]; then
+        echo "STAGE=sandbox"             >> $HOME/.env
+        echo "APP_NAMESPACE=ton-teleport-sand" >> $HOME/.env
+      else
+        echo "Branch $CI_COMMIT_BRANCH не поддерживается — пропускаю"
+        exit 78            # Преждевременный success-skip
+      fi
+
+# ──────────────────────────────────────────────────────────────────
+- name: build-images
+  image: docker:25.0.2-dind          # docker-in-docker
+  privileged: true
+  commands:
+    - apk add --no-cache bash curl jq git
+    - source $HOME/.env              # STAGE, APP_NAMESPACE, …
+    - echo "$KUBE_CONFIG" > kubeconfig.yaml
+    - export KUBECONFIG=$PWD/kubeconfig.yaml
+    - kubectl config use-context $(kubectl config get-contexts -o name | head -n1)
+
+    # Достаём данные реестра из секрета в кластере
+    - |
+      dockerConfig=$(kubectl -n "$APP_NAMESPACE" \
+        get secret docker-registry-creds \
+        -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d)
+      DOCKER_REGISTRY_URL=$(echo "$dockerConfig" | jq -r '.auths | to_entries[0].key')
+      DOCKER_REGISTRY_USERNAME=$(echo "$dockerConfig" | jq -r '.auths | to_entries[0].value.username')
+      DOCKER_REGISTRY_PASSWORD=$(echo "$dockerConfig" | jq -r '.auths | to_entries[0].value.password')
+      echo "$DOCKER_REGISTRY_PASSWORD" | \
+        docker login "$DOCKER_REGISTRY_URL" --username "$DOCKER_REGISTRY_USERNAME" --password-stdin
+
+    # Строим / пушим образы для всех приложений
+    - |
+      SHORT_SHA=${CI_COMMIT_SHA:0:7}
+      for app in $(echo "$APPS" | jq -r '.[]'); do
+        IMAGE="$DOCKER_REGISTRY_URL/${app}-${STAGE}"
+        docker build -f $app/Dockerfile --platform linux/amd64 \
+          -t $IMAGE:latest -t $IMAGE:$SHORT_SHA .
+        docker push $IMAGE:latest
+        docker push $IMAGE:$SHORT_SHA
+      done
+
+# ──────────────────────────────────────────────────────────────────
+- name: helm-deploy
+  image: alpine/k8s:1.30.1           # kubectl + helm
+  commands:
+    - apk add --no-cache bash curl jq helm
+    - source $HOME/.env
+    - echo "$KUBE_CONFIG" > kubeconfig.yaml
+    - export KUBECONFIG=$PWD/kubeconfig.yaml
+    - kubectl config use-context $(kubectl config get-contexts -o name | head -n1)
+
+    # Получаем URL реестра (чтобы не повторять логику выше)
+    - |
+      dockerConfig=$(kubectl -n "$APP_NAMESPACE" \
+        get secret docker-registry-creds \
+        -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d)
+      DOCKER_REGISTRY_URL=$(echo "$dockerConfig" | jq -r '.auths | to_entries[0].key')
+
+    # Параллельный деплой всех приложений с откатом при любой ошибке
+    - |
+      SHORT_SHA=${CI_COMMIT_SHA:0:7}
+      failed=0
+      for app in $(echo "$APPS" | jq -r '.[]'); do
+        SECRET_OPT=""
+        if kubectl -n "$APP_NAMESPACE" get secret "${app}-secrets" &>/dev/null; then
+          SECRET_OPT="--set secretName=${app}-secrets"
+        fi
+        VALUES_OPT=""
+        FILE="${app}/${app}-${STAGE}.yml"
+        [ -f "$FILE" ] && VALUES_OPT="-f $FILE"
+
+        echo "⎈  Deploy $app..."
+        helm upgrade --install "$app" ./helm \
+          --namespace "$APP_NAMESPACE" \
+          --set image.repository="$DOCKER_REGISTRY_URL/${app}-${STAGE}" \
+          --set image.tag="$SHORT_SHA" \
+          --set app.name="$app" \
+          --set configMapName=envs-config \
+          $SECRET_OPT \
+          --atomic --timeout 5m --history-max 2 \
+          $VALUES_OPT || failed=1
+      done
+      [ $failed -eq 0 ] || exit 1
