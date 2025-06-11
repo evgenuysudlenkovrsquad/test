@@ -1,57 +1,47 @@
 # .woodpecker.yml
-# ────────────────────────────────────────────────
-# Триггер: push в develop или sandbox,
-# исключая коммиты, затрагивающие только *.md
+# -------------------------------------------------
+# Запускаем pipeline при push-ах в develop или sandbox
 when:
-  event: push
-  branch: [develop, sandbox]
-  path:
-    exclude: ['**/*.md']
-
-# Кэш Kaniko — ускоряет повторные сборки
-volumes:
-  - name: kaniko-cache
-    temp: {}
+  - event: push
+    branch: [develop, sandbox]
 
 steps:
-# ────────────────────────────────────────────────
+# -------------------------------------------------
 - name: init-vars
   image: alpine:3.19
   environment:
+    # kube-config забираем из репо-секрета
     KUBE_CONFIG:
-      from_secret: kube_config
+      from_secret: kube_config        # ➜ UI / woodpecker-cli secret add …
+    # список ваших сервисов
     APPS: '["indexer","relayer"]'
   commands:
-    # Определяем STAGE и namespace по ветке
+    # определяем STAGE и namespace по ветке
     - |
       case "$CI_COMMIT_BRANCH" in
         develop)
-          echo "STAGE=develop"            >> .env
-          echo "APP_NAMESPACE=ton-teleport-dev"  >> .env
-          ;;
+          echo "STAGE=develop"             >> .env
+          echo "APP_NAMESPACE=ton-teleport-dev"  >> .env ;;
         sandbox)
-          echo "STAGE=sandbox"            >> .env
-          echo "APP_NAMESPACE=ton-teleport-sand" >> .env
-          ;;
-        *) exit 78 ;;          # неизвестная ветка → пропуск
+          echo "STAGE=sandbox"             >> .env
+          echo "APP_NAMESPACE=ton-teleport-sand" >> .env ;;
+        *) exit 78 ;;        # неизвестная ветка → graceful-skip
       esac
       echo "SHORT_SHA=${CI_COMMIT_SHA:0:7}" >> .env
 
-# ────────────────────────────────────────────────
+# -------------------------------------------------
 - name: build-images
   image: gcr.io/kaniko-project/executor:debug
   depends_on: [init-vars]
-  volumes:
-    - name: kaniko-cache
-      path: /kaniko/cache
   commands:
     - apk add --no-cache bash curl jq kubectl
     - source .env
+    # kube-config во временный файл
     - echo "$KUBE_CONFIG" > kubeconfig.yaml
     - export KUBECONFIG=$PWD/kubeconfig.yaml
     - kubectl config use-context "$(kubectl config get-contexts -o name | head -n1)"
 
-    # Достаём данные Docker-реестра из Kubernetes-секрета
+    # Достаём параметры Docker-реестра из Kubernetes-секрета
     - |
       reg=$(kubectl -n "$APP_NAMESPACE" get secret docker-registry-creds \
             -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d)
@@ -59,26 +49,24 @@ steps:
       USER=$(echo "$reg" | jq -r '.auths | to_entries[0].value.username')
       PASS=$(echo "$reg" | jq -r '.auths | to_entries[0].value.password')
 
-      # Kaniko читает логин из /kaniko/.docker/config.json
+      # авторизация для Kaniko
       mkdir -p /kaniko/.docker
-      printf '{"auths": {"%s": {"username":"%s","password":"%s"}}}' \
+      printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}' \
              "$REG_URL" "$USER" "$PASS" > /kaniko/.docker/config.json
 
-    # Канико-сборка/пуш для каждого приложения
+    # билдим и пушим все приложения
     - |
       for app in $(echo "$APPS" | jq -r '.[]'); do
-        echo "📦  Build $app"
         /kaniko/executor \
           --context "$PWD" \
           --dockerfile "$app/Dockerfile" \
           --destination "$REG_URL/${app}-${STAGE}:latest" \
-          --destination "$REG_URL/${app}-${STAGE}:$SHORT_SHA" \
-          --cache=true --cache-dir=/kaniko/cache
+          --destination "$REG_URL/${app}-${STAGE}:$SHORT_SHA"
       done
 
-# ────────────────────────────────────────────────
+# -------------------------------------------------
 - name: deploy
-  image: alpine/k8s:1.30.1           # kubectl + helm
+  image: alpine/k8s:1.30.1          # helm + kubectl
   depends_on: [build-images]
   commands:
     - apk add --no-cache bash curl jq helm
@@ -87,7 +75,7 @@ steps:
     - export KUBECONFIG=$PWD/kubeconfig.yaml
     - kubectl config use-context "$(kubectl config get-contexts -o name | head -n1)"
 
-    # URL реестра снова извлекаем через kubectl
+    # получаем URL реестра повторно
     - |
       reg=$(kubectl -n "$APP_NAMESPACE" get secret docker-registry-creds \
             -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d)
@@ -96,8 +84,6 @@ steps:
       failed=0
       for app in $(echo "$APPS" | jq -r '.[]'); do
         echo "⎈  Deploy $app"
-
-        # секрета может не быть — добавляем параметр условно
         SECRET_OPT=""
         kubectl -n "$APP_NAMESPACE" get secret "${app}-secrets" &>/dev/null \
           && SECRET_OPT="--set secretName=${app}-secrets"
