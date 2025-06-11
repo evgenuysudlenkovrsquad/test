@@ -26,7 +26,7 @@ steps:
             echo "STAGE=sandbox"             >> .env
             echo "APP_NAMESPACE=ton-teleport-sand" >> .env ;;
           main)
-            echo "STAGE=main"             >> .env
+            echo "STAGE=test"             >> .env
             echo "APP_NAMESPACE=ton-teleport-test" >> .env ;;
           *) exit 78 ;;        # неизвестная ветка → graceful-skip
         esac
