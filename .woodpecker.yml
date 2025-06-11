@@ -1,19 +1,24 @@
-# .woodpecker.yml
+# .woodpecker.yml ─ фрагмент с шагом build
 matrix:
-  APP: [indexer, relayer]
+  APP: [indexer, relayer]          # какие приложения собирать
 
 steps:
   - name: build
     image: woodpeckerci/plugin-kaniko:latest
 
-    secrets: [docker_registry_url, docker_username, docker_password]
-
+    # все секреты подключаем прямо в settings
     settings:
-      registry: ${DOCKER_REGISTRY_URL}
-      username: ${DOCKER_USERNAME}
-      password: ${DOCKER_PASSWORD}
-      repo: ${DOCKER_REGISTRY_URL}/${APP}-${CI_COMMIT_BRANCH}
-      tags: latest,${CI_PIPELINE_NUMBER}
+      registry:
+        from_secret: docker_registry_url
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: ${APP}-${CI_COMMIT_BRANCH}
+      tags:
+        - latest
+        - ${CI_PIPELINE_NUMBER}
+
       dockerfile: ${APP}/Dockerfile
       context: .
       cache: true
@@ -21,6 +26,7 @@ steps:
     when:
       event: [push]
       branch: [develop, sandbox, main]
+
 
 # #############################################################################
 # # 2. Деплой всех собранных образов
