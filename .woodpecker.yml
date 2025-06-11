@@ -1,25 +1,12 @@
 # .woodpecker.yml
+matrix:
+  APP: [indexer, relayer]
+
 steps:
-#############################################################################
-# 1. Матрица Kaniko — параллельно билдим indexer и relayer
-#############################################################################
   - name: build
     image: woodpeckerci/plugin-kaniko:latest
 
-    when:
-      event: push
-      branch: [develop, sandbox, main]
-
-    matrix:
-      APP: [indexer, relayer]
-
-    environment:
-      DOCKER_REGISTRY_URL:
-        from_secret: docker_registry_url
-      DOCKER_USERNAME:
-        from_secret: docker_username
-      DOCKER_PASSWORD:
-        from_secret: docker_password
+    secrets: [docker_registry_url, docker_username, docker_password]
 
     settings:
       registry: ${DOCKER_REGISTRY_URL}
@@ -30,6 +17,10 @@ steps:
       dockerfile: ${APP}/Dockerfile
       context: .
       cache: true
+
+    when:
+      event: [push]
+      branch: [develop, sandbox, main]
 
 # #############################################################################
 # # 2. Деплой всех собранных образов
