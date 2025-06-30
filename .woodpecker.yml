@@ -53,9 +53,9 @@ steps:
 #       # выбираем namespace по ветке
 #       - |
 #         case "$CI_COMMIT_BRANCH" in
-#           develop) APP_NS=ton-teleport-dev  ;;
-#           sandbox) APP_NS=ton-teleport-sand ;;
-#           main)    APP_NS=ton-teleport-prod ;;
+#           develop) APP_NS=1234-dev  ;;
+#           sandbox) APP_NS=1234-sand ;;
+#           main)    APP_NS=1234-prod ;;
 #           *) echo "Unsupported branch $CI_COMMIT_BRANCH"; exit 1 ;;
 #         esac
 #         echo "Deploy to $APP_NS (tag=$CI_PIPELINE_NUMBER)"
